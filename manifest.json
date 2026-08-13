@@ -1,0 +1,16 @@
+{
+  "name": "May Bike ERP V15.5",
+  "short_name": "May Bike",
+  "description": "Sistema May Bike V15.4 Corrigida com logo na OS, garantias, OS, vendas, estoque, financeiro e relatórios.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080a0e",
+  "theme_color": "#080a0e",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
