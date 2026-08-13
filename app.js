@@ -1,5 +1,5 @@
 
-const MYPDV_VERSION='1.0.3';
+const MYPDV_VERSION='16.0.0';
 const firebaseConfig={apiKey:"AIzaSyAhCd5oWt6JS0aiH2JlH0J-xSnjCuOonHI",authDomain:"my-pdv-85b1e.firebaseapp.com",databaseURL:"https://my-pdv-85b1e-default-rtdb.firebaseio.com",projectId:"my-pdv-85b1e",storageBucket:"my-pdv-85b1e.firebasestorage.app",messagingSenderId:"865647781746",appId:"1:865647781746:web:c6d57b880fac9afe0f1feb"};
 let db, auth, cloudOK=false; try{firebase.initializeApp(firebaseConfig);db=firebase.firestore();auth=firebase.auth();cloudOK=true}catch(e){console.warn(e)}
 const STORE='maybike_v11_pwa_cloud'; // Mantido para preservar dados locais existentes
@@ -228,9 +228,9 @@ function ensureSaasPages(){
 }
 function setLoginSaasUI(){
   const loginBox=document.querySelector('#login .box'); if(!loginBox) return;
-  document.title='My PDV — SaaS V1.0.3 Comercial';
+  document.title='My PDV — SaaS V16.0 Comercial';
   const h=loginBox.querySelector('h1'); if(h) h.textContent='My PDV';
-  const p=loginBox.querySelector('.brand p'); if(p) p.textContent='SaaS V1.0.3 Comercial — Multiempresa';
+  const p=loginBox.querySelector('.brand p'); if(p) p.textContent='SaaS V16.0 Comercial — Multiempresa';
   const user=$('user'); if(user){user.value=''; user.placeholder='seuemail@loja.com';}
   const pass=$('pass'); if(pass){pass.value=''; pass.placeholder='Senha';}
   const notice=loginBox.querySelector('.notice'); if(notice) notice.innerHTML='Entre com seu e-mail ou crie a primeira loja para começar.';
@@ -275,9 +275,9 @@ async function initSaasAuth(){
 }
 function updateSaasBrand(){
   const emp=st.empresa||{};
-  document.title=(emp.nome||'My PDV')+' — My PDV SaaS V1.0.3';
+  document.title=(emp.nome||'My PDV')+' — My PDV SaaS V16.0';
   document.querySelectorAll('.store h1').forEach(x=>x.textContent=emp.nome||'My PDV');
-  document.querySelectorAll('.store small').forEach(x=>x.innerHTML=`WhatsApp: <b>${emp.whats||'—'}</b><br>E-mail: <b>${emp.email||'—'}</b><br>Plano: <b>${emp.plano||'Starter'}</b><br>My PDV SaaS V1.0.3`);
+  document.querySelectorAll('.store small').forEach(x=>x.innerHTML=`WhatsApp: <b>${emp.whats||'—'}</b><br>E-mail: <b>${emp.email||'—'}</b><br>Plano: <b>${emp.plano||'Starter'}</b><br>My PDV SaaS V16.0`);
 }
 function loja(){
  const e=st.empresa||{};
@@ -739,7 +739,7 @@ config = function(){
   migrateV13(); registrarBikesVendidasPendentes();
 })();/* ===== PATCH V16.0 — PDV PROFISSIONAL / FLUXO DE CAIXA ===== */
 (function(){
-  const BUILD='V16.0 PDV Enterprise';
+  const BUILD='V16.0.1 PDV Enterprise';
   window.MYPDV_BUILD=BUILD;
 
   function isAdmin(){
@@ -776,18 +776,26 @@ config = function(){
 
   /* ---------- PAGAMENTO ÚNICO PARA PDV E OS ---------- */
   window.updatePayTotal=function(){
-    const sub=n($('pay_subtotal')?.value), d=n($('pay_desconto')?.value);
+    const sub=n($('pay_subtotal')?.value), raw=n($('pay_desconto')?.value), mode=$('pay_desconto_tipo')?.value||'R$';
+    const d=mode==='%' ? Math.min(100,Math.max(0,raw))*sub/100 : Math.max(0,raw);
     const total=Math.max(0,sub-d);
     if($('pay_total'))$('pay_total').value=total.toFixed(2);
     if($('pay_total_label'))$('pay_total_label').textContent=money(total);
     if($('pay_desconto_label'))$('pay_desconto_label').textContent=money(d);
+    if($('pay_desconto_percent_label'))$('pay_desconto_percent_label').textContent=sub>0?(d/sub*100).toFixed(2)+'%':'0,00%';
     const entrada=$('pay_entrada'); if(entrada && n(entrada.value)>total) entrada.value=total.toFixed(2);
   };
   window.payChange=function(){
     const f=$('pay_forma')?.value;
     if($('mix'))$('mix').style.display=f=='Misto'?'block':'none';
     if($('prazo'))$('prazo').style.display=(f=='A prazo'||f=='Parcial'||f=='Crédito Parcelado')?'block':'none';
-    if($('pay_entrada') && f!='A prazo' && f!='Parcial' && f!='Crédito Parcelado') $('pay_entrada').value=$('pay_total')?.value||0;
+    if($('pay_entrada') && !['A prazo','Parcial','Crédito Parcelado'].includes(f)) $('pay_entrada').value=$('pay_total')?.value||0;
+  };
+  window.payDiscountModeChange=function(){
+    const mode=$('pay_desconto_tipo')?.value||'R$';
+    const input=$('pay_desconto');
+    if(input){input.max=mode==='%'?'100':n($('pay_subtotal')?.value||0);input.placeholder=mode==='%'?'Ex.: 10':'Ex.: 50,00';}
+    updatePayTotal();
   };
   window.payHTML=function(total,opts={}){
     const allowDiscount=opts.allowDiscount!==false;
@@ -795,21 +803,23 @@ config = function(){
       <div class="pdv-pay-title"><span>💳 Pagamento</span><span id="pay_total_label" class="pdv-grand">${money(total)}</span></div>
       <div class="form3">
         <div class="field"><label>Subtotal</label><input id="pay_subtotal" type="number" step="0.01" value="${n(total).toFixed(2)}" readonly></div>
-        <div class="field"><label>Desconto ${allowDiscount?'(R$)':''}</label><input id="pay_desconto" type="number" min="0" step="0.01" value="0" ${allowDiscount?'':'disabled'} oninput="updatePayTotal()"></div>
+        <div class="field"><label>Desconto</label><div style="display:flex;gap:6px"><select id="pay_desconto_tipo" onchange="payDiscountModeChange()" ${allowDiscount?'':'disabled'} style="max-width:90px"><option>R$</option><option>%</option></select><input id="pay_desconto" type="number" min="0" step="0.01" value="0" ${allowDiscount?'':'disabled'} oninput="updatePayTotal()"></div></div>
         <div class="field"><label>Total a pagar</label><input id="pay_total" type="number" step="0.01" value="${n(total).toFixed(2)}" readonly></div>
       </div>
-      ${allowDiscount?`<div class="discount-row"><span>Desconto aplicado</span><b id="pay_desconto_label">R$ 0,00</b><span class="discount-hint">Acima de 10% exige autorização do administrador.</span></div>`:''}
+      ${allowDiscount?`<div class="discount-row"><span>Desconto aplicado</span><b id="pay_desconto_label">R$ 0,00</b><span>Percentual: <b id="pay_desconto_percent_label">0,00%</b></span><span class="discount-hint">Acima de 10% exige autorização do administrador.</span></div>`:''}
       <div class="form3">
         <div class="field"><label>Forma de pagamento</label><select id="pay_forma" onchange="payChange()"><option>PIX</option><option>Dinheiro</option><option>Débito</option><option>Crédito 1x</option><option>Crédito Parcelado</option><option>Transferência</option><option>Misto</option><option>A prazo</option><option>Parcial</option></select></div>
         <div class="field"><label>Observação</label><input id="pay_obs" placeholder="Ex.: 3x, entrada + restante..."></div>
       </div>
       <div id="mix" style="display:none" class="card"><h3>Pagamento misto</h3><div class="form3"><input id="mix_pix" type="number" step="0.01" placeholder="PIX"><input id="mix_din" type="number" step="0.01" placeholder="Dinheiro"><input id="mix_card" type="number" step="0.01" placeholder="Cartão"></div></div>
-      <div id="prazo" style="display:none" class="card"><h3>Pagamento a prazo / parcelamento</h3><div class="form3"><div class="field"><label>Entrada recebida agora</label><input id="pay_entrada" type="number" min="0" step="0.01" value="0"></div><div class="field"><label>Nº de parcelas</label><input id="pay_parcelas" type="number" min="1" value="1"></div><div class="field"><label>Primeiro vencimento</label><input id="pay_venc" type="date" value="${addDays(today(),30)}"></div></div><div class="notice">O saldo será lançado automaticamente em <b>Contas a Receber</b>.</div></div>
+      <div id="prazo" style="display:none" class="card"><h3>Pagamento a prazo / parcelamento</h3><div class="form3"><div class="field"><label>Entrada recebida agora</label><input id="pay_entrada" type="number" min="0" step="0.01" value="0"></div><div class="field"><label>Nº de parcelas</label><input id="pay_parcelas" type="number" min="1" value="1"></div><div class="field"><label>Primeiro vencimento</label><input id="pay_venc" type="date" value="${addDays(today(),30)}"></div></div><div class="notice">O saldo será lançado automaticamente em <b>Contas a Receber</b> pelo valor <b>após o desconto</b>.</div></div>
     </div>`;
   };
   function validatePayment(){
-    const subtotal=n($('pay_subtotal')?.value), desc=n($('pay_desconto')?.value), total=n($('pay_total')?.value);
-    if(desc<0 || desc>subtotal) return {ok:false,msg:'O desconto não pode ser maior que o subtotal.'};
+    const subtotal=n($('pay_subtotal')?.value), raw=n($('pay_desconto')?.value), mode=$('pay_desconto_tipo')?.value||'R$';
+    const desc=mode==='%' ? subtotal*Math.min(100,Math.max(0,raw))/100 : Math.max(0,raw);
+    const total=Math.max(0,subtotal-desc);
+    if(raw<0 || (mode==='R$' && raw>subtotal) || (mode==='%' && raw>100)) return {ok:false,msg:'Desconto inválido.'};
     if(subtotal>0 && desc/subtotal>0.10 && !isAdmin()) return {ok:false,msg:'Este desconto ultrapassa 10%. Somente o administrador pode autorizar.'};
     const forma=$('pay_forma')?.value||'';
     if(forma==='Misto'){
@@ -818,16 +828,12 @@ config = function(){
     }
     const entrada=['A prazo','Parcial','Crédito Parcelado'].includes(forma)?n($('pay_entrada')?.value):total;
     if(entrada<0 || entrada>total)return {ok:false,msg:'A entrada não pode ser maior que o total.'};
-    return {ok:true,subtotal,desconto:desc,total,forma,entrada,obs:$('pay_obs')?.value||'',parcelas:Math.max(1,parseInt($('pay_parcelas')?.value||1)),venc:$('pay_venc')?.value||addDays(today(),30),mix:forma==='Misto'?{pix:n($('mix_pix')?.value),dinheiro:n($('mix_din')?.value),cartao:n($('mix_card')?.value)}:null};
+    return {ok:true,subtotal,desconto:desc,descontoRaw:raw,descontoTipo:mode,total,forma,entrada,obs:$('pay_obs')?.value||'',parcelas:Math.max(1,parseInt($('pay_parcelas')?.value||1)),venc:$('pay_venc')?.value||addDays(today(),30),mix:forma==='Misto'?{pix:n($('mix_pix')?.value),dinheiro:n($('mix_din')?.value),cartao:n($('mix_card')?.value)}:null};
   }
   window.confirmarPagamento=function(callback,context='venda'){
     updatePayTotal();
     const p=validatePayment(); if(!p.ok)return alert(p.msg);
-    const resumo=`<div class="confirm-sale">
-      <div class="confirm-icon">✓</div><h2>Confirmar finalização?</h2>
-      <p>Confira os dados antes de registrar a venda.</p>
-      <div class="confirm-grid"><span>Subtotal</span><b>${money(p.subtotal)}</b><span>Desconto</span><b>${money(p.desconto)}</b><span>Forma</span><b>${esc(p.forma)}</b><span>Total</span><strong>${money(p.total)}</strong></div>
-    </div>`;
+    const resumo=`<div class="confirm-sale"><div class="confirm-icon">✓</div><h2>Confirmar finalização?</h2><p>Confira os dados antes de registrar a operação.</p><div class="confirm-grid"><span>Subtotal</span><b>${money(p.subtotal)}</b><span>Desconto</span><b>${money(p.desconto)} ${p.descontoTipo==='%'?'('+p.descontoRaw+'%)':''}</b><span>Forma</span><b>${esc(p.forma)}</b><span>Total</span><strong>${money(p.total)}</strong></div></div>`;
     modal(`<div class="mhead"><h3>Finalizar ${context}</h3><button class="btn" onclick="closeM()">Voltar</button></div>${resumo}<div class="actions"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn goldbtn" onclick="window.__confirmPayCallback&&window.__confirmPayCallback()">✓ Sim, finalizar e lançar no caixa</button></div>`);
     window.__confirmPayCallback=function(){delete window.__confirmPayCallback;closeM();callback(p)};
   };
@@ -852,7 +858,7 @@ config = function(){
   window.pdvCommit=function(p){
     for(const i of pdvCart.produtos){const e=st.estoque.find(x=>x.id==i.prodId);if(!e)return alert('Produto não encontrado no estoque.');if(n(e.qtd)<n(i.qtd))return alert('Estoque insuficiente para '+e.desc)}
     for(const i of pdvCart.produtos){const e=st.estoque.find(x=>x.id==i.prodId);e.qtd-=n(i.qtd)}
-    const v={id:uid(),num:st.seqVenda++,cod:typeof v14SaleCode==='function'?v14SaleCode():'VD'+String(st.seqVenda).padStart(6,'0'),docCod:'DV'+String(st.seqDocumento++).padStart(6,'0'),data:today(),cliente:$('pdv_cliente')?.value||'Consumidor',origem:'PDV',total:p.total,subtotal:p.subtotal,descontoPagamento:p.desconto,forma:p.forma,obs:p.obs,status:p.entrada>=p.total?'Recebida':(p.entrada>0?'Parcial / a receber':'A receber'),entrada:p.entrada,itens:[...pdvCart.produtos,...pdvCart.mao.map(m=>({nome:m.desc,qtd:1,preco:m.valor,tipo:'Mão de obra',maoId:m.maoId}))]};
+    const v={id:uid(),num:st.seqVenda++,cod:typeof v14SaleCode==='function'?v14SaleCode():'VD'+String(st.seqVenda).padStart(6,'0'),docCod:'DV'+String(st.seqDocumento++).padStart(6,'0'),data:today(),cliente:$('pdv_cliente')?.value||'Consumidor',origem:'PDV',total:p.total,subtotal:p.subtotal,descontoPagamento:p.desconto,descontoTipo:p.descontoTipo,descontoPercent:p.descontoTipo==='%'?p.descontoRaw:(p.subtotal?((p.desconto/p.subtotal)*100):0),forma:p.forma,obs:p.obs,status:p.entrada>=p.total?'Recebida':(p.entrada>0?'Parcial / a receber':'A receber'),entrada:p.entrada,itens:[...pdvCart.produtos,...pdvCart.mao.map(m=>({nome:m.desc,qtd:1,preco:m.valor,tipo:'Mão de obra',maoId:m.maoId}))]};
     if(p.mix)v.mix=p.mix;
     st.vendas.push(v);if(p.entrada>0)addCaixa('Entrada',p.entrada,'Venda '+v.cod+' — '+v.cliente,'PDV');if(p.entrada<p.total)gerarContasReceber(v,p.total,p.entrada,p.parcelas,p.venc);audit('Venda finalizada',`${v.cod} — ${v.cliente} — total ${money(v.total)} — desconto ${money(v.descontoPagamento)}`);closeM();save();pdvReset();render('pdv');setTimeout(()=>printRec(v.id),250);
   };
@@ -868,9 +874,12 @@ config = function(){
     </div>`;pdvRenderCart();setTimeout(()=>$('pdv_busca')?.focus(),50);
   };
 
+  window.openVendaRapidaLegacy=window.openVendaRapida;
+  window.openVendaRapida=function(){go('pdv')};
+
   /* ---------- OS: mesmo fluxo de pagamento e desconto final ---------- */
   window.openPay=function(id){const o=st.os.find(x=>x.id==id);if(!o)return;const subtotal=Math.max(0,calcOS(o).total);modal(`<div class="mhead"><h3>Receber / Faturar OS ${o.cod||'#'+o.num}</h3><button class="btn" onclick="closeM()">Fechar</button></div><div class="notice"><b>Cliente:</b> ${esc(o.cliente)}<br><b>Funcionário:</b> ${esc(o.funcionario||'—')}<br><b>Total da OS:</b> ${money(subtotal)}</div>${payHTML(subtotal)}<div class="actions"><button class="btn goldbtn" onclick="confirmarPagamento(function(p){receberOSV16('${id}',p)},'faturamento da OS')">Continuar para confirmação</button></div>`)};
-  window.receberOSV16=function(id,p){const o=st.os.find(x=>x.id==id);if(!o)return;const mix=p.forma==='Misto'?{pix:n($('mix_pix')?.value),dinheiro:n($('mix_din')?.value),cartao:n($('mix_card')?.value)}:null;const v={id:uid(),num:st.seqVenda++,cod:typeof v14SaleCode==='function'?v14SaleCode():'VD'+String(st.seqVenda).padStart(6,'0'),data:today(),cliente:o.cliente,origem:'OS #'+o.num,osId:o.id,funcionario:o.funcionario,funcionarioId:o.funcionarioId,subtotal:p.subtotal,total:p.total,descontoPagamento:p.desconto,descontoOS:n(o.desc),forma:p.forma,obs:p.obs,mix,status:p.entrada>=p.total?'Recebida':(p.entrada>0?'Parcial / a receber':'A receber'),entrada:p.entrada,itens:[...(o.pecas||[]),...(o.mao||[]).map(m=>({nome:m.desc,qtd:1,preco:m.valor,tipo:'Mão de obra'}))]};st.vendas.push(v);o.status=p.entrada>=p.total?'Faturada':'Pronta para retirada';o.pagamento={forma:p.forma,total:p.total,subtotal:p.subtotal,descontoPagamento:p.desconto,obs:p.obs,mix,data:today(),vendaId:v.id,status:v.status};if(p.entrada>0)addCaixa('Entrada',p.entrada,'Recebimento '+(o.cod||'OS')+' — '+o.cliente,'OS / Serviço');if(p.entrada<p.total)gerarContasReceber(v,p.total,p.entrada,p.parcelas,p.venc);audit('OS faturada',`${o.cod||'OS'+o.num} — ${o.cliente} — total ${money(v.total)} — desconto ${money(v.descontoPagamento)}`);closeM();save();setTimeout(()=>printRec(v.id),250)};
+  window.receberOSV16=function(id,p){const o=st.os.find(x=>x.id==id);if(!o)return;const mix=p.forma==='Misto'?{pix:n($('mix_pix')?.value),dinheiro:n($('mix_din')?.value),cartao:n($('mix_card')?.value)}:null;const v={id:uid(),num:st.seqVenda++,cod:typeof v14SaleCode==='function'?v14SaleCode():'VD'+String(st.seqVenda).padStart(6,'0'),data:today(),cliente:o.cliente,origem:'OS #'+o.num,osId:o.id,funcionario:o.funcionario,funcionarioId:o.funcionarioId,subtotal:p.subtotal,total:p.total,descontoPagamento:p.desconto,descontoTipo:p.descontoTipo,descontoPercent:p.descontoTipo==='%'?p.descontoRaw:(p.subtotal?((p.desconto/p.subtotal)*100):0),descontoOS:n(o.desc),forma:p.forma,obs:p.obs,mix,status:p.entrada>=p.total?'Recebida':(p.entrada>0?'Parcial / a receber':'A receber'),entrada:p.entrada,itens:[...(o.pecas||[]),...(o.mao||[]).map(m=>({nome:m.desc,qtd:1,preco:m.valor,tipo:'Mão de obra'}))]};st.vendas.push(v);o.status=p.entrada>=p.total?'Faturada':'Pronta para retirada';o.pagamento={forma:p.forma,total:p.total,subtotal:p.subtotal,descontoPagamento:p.desconto,obs:p.obs,mix,data:today(),vendaId:v.id,status:v.status};if(p.entrada>0)addCaixa('Entrada',p.entrada,'Recebimento '+(o.cod||'OS')+' — '+o.cliente,'OS / Serviço');if(p.entrada<p.total)gerarContasReceber(v,p.total,p.entrada,p.parcelas,p.venc);audit('OS faturada',`${o.cod||'OS'+o.num} — ${o.cliente} — total ${money(v.total)} — desconto ${money(v.descontoPagamento)}`);closeM();save();setTimeout(()=>printRec(v.id),250)};
 
   /* ---------- HISTÓRICO DE VENDAS: mostra desconto ---------- */
   const vendasBase=vendas;
@@ -923,7 +932,7 @@ config = function(){
   };
   window.go=function(p){current=p;document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));if(!$('p-'+p)){const d=document.createElement('div');d.id='p-'+p;d.className='page';document.querySelector('.content')?.appendChild(d)}$('p-'+p)?.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));$('n-'+p)?.classList.add('active');const pg=pages.find(x=>x[0]==p);$('title').textContent=pg?pg[1].replace(/^. /,''):p;render(p)};
   nav();
-  try{document.title='May Bike — My PDV V16.0 PDV Enterprise';}catch(e){}
+  try{document.title='May Bike — My PDV V16.0.1 PDV Enterprise';}catch(e){}
   const style=document.createElement('style');style.textContent=`
     .pdv-shell{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}.pdv-side{position:sticky;top:12px}.pdv-total-box{background:linear-gradient(135deg,#151d29,#0d1118);border:1px solid #d6a600;border-radius:16px;padding:22px;margin-bottom:12px}.pdv-total-box span{display:block;color:var(--mut);font-size:12px;font-weight:700}.pdv-total-box strong{display:block;color:#f7c21b;font-size:38px;margin-top:8px}.pdv-finish{width:100%;border:0;border-radius:14px;background:#f2b900;color:#111;font-weight:900;font-size:17px;padding:18px;cursor:pointer;box-shadow:0 8px 25px rgba(0,0,0,.25)}.pdv-cart-table input{max-width:75px}.pdv-pay-card{border:1px solid #d6a600}.pdv-pay-title{display:flex;justify-content:space-between;align-items:center;font-size:18px;font-weight:800;margin-bottom:14px}.pdv-grand{font-size:28px;color:#f2b900}.discount-row{display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:10px;background:rgba(242,185,0,.08);margin:10px 0}.discount-row .discount-hint{margin-left:auto;color:var(--mut);font-size:12px}.confirm-sale{text-align:center;padding:12px}.confirm-icon{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;margin:0 auto 10px;background:#1f9d55;color:#fff;font-size:28px;font-weight:900}.confirm-grid{display:grid;grid-template-columns:1fr auto;gap:10px;text-align:left;padding:15px;border-radius:12px;background:#101722;margin-top:15px}.confirm-grid strong{font-size:22px;color:#f2b900}.pdv-launch{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #d6a600}.badge{white-space:nowrap}@media(max-width:900px){.pdv-shell{grid-template-columns:1fr}.pdv-side{position:static}.discount-row{flex-wrap:wrap}.discount-row .discount-hint{width:100%;margin-left:0}}
   `;document.head.appendChild(style);
